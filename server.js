@@ -23,7 +23,7 @@ app.use(express.json()); // To parse JSON request bodies
 
 //Routes
 app.get('/', (req, res)=> res.send('api is working'))
-app.use("/api/auth", authRoutes); // Mount auth routes at /api/auth
+app.use("/api/auth", authRoutes); 
 app.use("/api/protected", protectedRoutes);
 
 const PORT= process.env.PORT  || 3000;
