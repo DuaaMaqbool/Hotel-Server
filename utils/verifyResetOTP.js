@@ -1,4 +1,3 @@
-
 export const verifyResetOTP = (user, otp) => {
   if (!user) return { valid: false, message: "User not found", code: 404 };
 

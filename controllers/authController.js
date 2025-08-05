@@ -4,162 +4,178 @@ import jwt from "jsonwebtoken";
 import nodemailer from "nodemailer";
 import { verifyResetOTP } from "../utils/verifyResetOTP.js";
 
+// SIGNUP CONTROLLER - CORRECTED to handle 'role'
 export const signup = async (req, res) => {
-    try {
-        const { username, email, password } = req.body;
-        const existingUser = await User.findOne({ email });
-        if (existingUser) {
-            return res.status(400).json({ message: "Email already registered" });
-        }
-
-        const salt = await bcrypt.genSalt(10);
-        const hashedPassword = await bcrypt.hash(password, salt);
-
-        const newUser = new User({
-            username,
-            email,
-            password: hashedPassword,
-        });
-
-        await newUser.save();
-
-        res.status(201).json({ message: "User registered successfully" });
-    } catch (error) {
-        console.error("Signup error:", error);
-        res.status(500).json({ message: "Server error" });
+  try {
+    const { username, email, password, role } = req.body;
+    const existingUser = await User.findOne({ email });
+    if (existingUser) {
+      return res.status(400).json({ message: "Email already registered" });
     }
+
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(password, salt);
+
+    const newUser = new User({
+      username,
+      email,
+      password: hashedPassword,
+      role: role || "user", // Use the provided role, or default to "user"
+    });
+
+    await newUser.save();
+
+    res.status(201).json({ message: "User registered successfully" });
+  } catch (error) {
+    console.error("Signup error:", error);
+    res.status(500).json({ message: "Server error" });
+  }
 };
 
-// LOGIN CONTROLLER
+// LOGIN CONTROLLER - UPDATED for debugging
 export const login = async (req, res) => {
-    try {
-        const { email, password } = req.body;
-        const user = await User.findOne({ email });
-        if (!user) {
-            return res.status(400).json({ message: "Invalid email or password" });
-        }
+  try {
+    const { email, password } = req.body;
+    console.log("Attempting login with email:", email); // Log 1
 
-        const isMatch = await bcrypt.compare(password, user.password);
-        if (!isMatch) {
-            return res.status(400).json({ message: "Invalid email or password" });
-        }
-
-        const token = jwt.sign(
-            { id: user._id, email: user.email },
-            process.env.JWT_SECRET,
-            { expiresIn: "1d" }
-        );
-
-        // 💡 CRITICAL FIX: Ensure ALL cookie options are an exact match
-        res.cookie("token", token, {
-            httpOnly: true,
-            secure: process.env.NODE_ENV === "production",
-            sameSite: "strict",
-            path: "/", // <-- MUST BE CONSISTENT
-            maxAge: 24 * 60 * 60 * 1000,
-        });
-
-        res.json({ message: "Login successful" });
-
-    } catch (err) {
-        console.error("Login error:", err);
-        res.status(500).json({ message: "Internal Server Error" });
+    const user = await User.findOne({ email });
+    if (!user) {
+      console.error("Login failed: User not found for email", email); // Log 2
+      return res.status(400).json({ message: "Invalid email or password" });
     }
+    console.log("User found:", user.username, "Role:", user.role); // Log 3
+
+    const isMatch = await bcrypt.compare(password, user.password);
+    if (!isMatch) {
+      console.error("Login failed: Password mismatch for user", user.username); // Log 4
+      return res.status(400).json({ message: "Invalid email or password" });
+    }
+    console.log("Password matched successfully."); // Log 5
+
+    const token = jwt.sign(
+      { id: user._id, email: user.email, role: user.role },
+      process.env.JWT_SECRET,
+      { expiresIn: "1d" }
+    );
+
+    res.cookie("token", token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "strict",
+      path: "/",
+      maxAge: 24 * 60 * 60 * 1000,
+    });
+
+    res.json({
+      message: "Login successful",
+      user: {
+        id: user._id,
+        email: user.email,
+        username: user.username,
+        role: user.role,
+      },
+    });
+    console.log("Login successful. Response sent."); // Log 6
+  } catch (err) {
+    console.error("Login error:", err);
+    res.status(500).json({ message: "Internal Server Error" });
+  }
 };
 
 export const forgotPassword = async (req, res) => {
-    const { email } = req.body;
-    try {
-        const user = await User.findOne({ email });
-        if (!user)
-            return res
-                .status(404)
-                .json({ success: false, message: "User not found" });
+  const { email } = req.body;
+  try {
+    const user = await User.findOne({ email });
+    if (!user)
+      return res
+        .status(404)
+        .json({ success: false, message: "User not found" });
 
-        const otp = Math.floor(100000 + Math.random() * 900000).toString();
-        const otpExpiry = Date.now() + 10 * 60 * 1000;
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    const otpExpiry = Date.now() + 10 * 60 * 1000;
 
-        user.resetOTP = otp;
-        user.resetOTPExpiry = otpExpiry;
-        await user.save();
+    user.resetOTP = otp;
+    user.resetOTPExpiry = otpExpiry;
+    await user.save();
 
-        const transporter = nodemailer.createTransport({
-            service: "gmail",
-            auth: {
-                user: process.env.EMAIL_USER,
-                pass: process.env.EMAIL_PASS,
-            },
-        });
+    const transporter = nodemailer.createTransport({
+      service: "gmail",
+      auth: {
+        user: process.env.EMAIL_USER,
+        pass: process.env.EMAIL_PASS,
+      },
+    });
 
-        const mailOptions = {
-            from: "youremail@gmail.com",
-            to: user.email,
-            subject: "OTP for Password Reset",
-            text: `Your OTP is: ${otp}. It will expire in 10 minutes.`,
-        };
+    const mailOptions = {
+      from: "youremail@gmail.com",
+      to: user.email,
+      subject: "OTP for Password Reset",
+      text: `Your OTP is: ${otp}. It will expire in 10 minutes.`,
+    };
 
-        await transporter.sendMail(mailOptions);
+    await transporter.sendMail(mailOptions);
 
-        res.status(200).json({
-            success: true,
-            message: "OTP sent to email successfully",
-        });
-    } catch (error) {
-        console.error("Error in forgotPassword:", error);
-        res.status(500).json({ success: false, message: "Server error" });
-    }
+    res.status(200).json({
+      success: true,
+      message: "OTP sent to email successfully",
+    });
+  } catch (error) {
+    console.error("Error in forgotPassword:", error);
+    res.status(500).json({ success: false, message: "Server error" });
+  }
 };
 
 export const verifyOTP = async (req, res) => {
-    const { email, otp } = req.body;
-    try {
-        const user = await User.findOne({ email });
-        const result = verifyResetOTP(user, otp);
-        if (!result.valid) {
-            return res.status(result.code).json({ success: false, message: result.message });
-        }
-        res.status(200).json({ success: true, message: "OTP verified" });
-    } catch (error) {
-        console.error("Error in verifyOTP:", error);
-        res.status(500).json({ success: false, message: "Server error" });
+  const { email, otp } = req.body;
+  try {
+    const user = await User.findOne({ email });
+    const result = verifyResetOTP(user, otp);
+    if (!result.valid) {
+      return res
+        .status(result.code)
+        .json({ success: false, message: result.message });
     }
+    res.status(200).json({ success: true, message: "OTP verified" });
+  } catch (error) {
+    console.error("Error in verifyOTP:", error);
+    res.status(500).json({ success: false, message: "Server error" });
+  }
 };
 
-
 export const resetPasswordController = async (req, res) => {
-    const { email, otp, newPassword } = req.body;
-    if (!email || !otp || !newPassword) {
-        return res.status(400).json({
-            success: false,
-            message: 'Email, OTP, and new password are required'
-        });
+  const { email, otp, newPassword } = req.body;
+  if (!email || !otp || !newPassword) {
+    return res.status(400).json({
+      success: false,
+      message: "Email, OTP, and new password are required",
+    });
+  }
+  try {
+    const user = await User.findOne({ email });
+    const result = verifyResetOTP(user, otp);
+    if (!result.valid) {
+      return res.status(result.code).json({
+        success: false,
+        message: result.message,
+      });
     }
-    try {
-        const user = await User.findOne({ email });
-        const result = verifyResetOTP(user, otp);
-        if (!result.valid) {
-            return res.status(result.code).json({
-                success: false,
-                message: result.message
-            });
-        }
-        const hashedPassword = await bcrypt.hash(newPassword, 10);
-        user.password = hashedPassword;
-        user.resetOTP = undefined;
-        user.resetOTPExpiry = undefined;
-        await user.save();
-        const transporter = nodemailer.createTransport({
-            service: "gmail",
-            auth: {
-                user: process.env.EMAIL_USER,
-                pass: process.env.EMAIL_PASS,
-            },
-        });
-        const mailOptions = {
-            from: '"Your App Name" <noreply@yourapp.com>',
-            to: user.email,
-            subject: "Password Changed Successfully",
-            html: `
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+    user.password = hashedPassword;
+    user.resetOTP = undefined;
+    user.resetOTPExpiry = undefined;
+    await user.save();
+    const transporter = nodemailer.createTransport({
+      service: "gmail",
+      auth: {
+        user: process.env.EMAIL_USER,
+        pass: process.env.EMAIL_PASS,
+      },
+    });
+    const mailOptions = {
+      from: '"Your App Name" <noreply@yourapp.com>',
+      to: user.email,
+      subject: "Password Changed Successfully",
+      html: `
                 <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
                     <h2 style="color: #4CAF50;">Password Update Confirmation</h2>
                     <p>Your password was successfully changed on ${new Date().toLocaleString()}.</p>
@@ -170,43 +186,43 @@ export const resetPasswordController = async (req, res) => {
                     </p>
                 </div>
             `,
-        };
-        await transporter.sendMail(mailOptions);
-        res.status(200).json({
-            success: true,
-            message: 'Password reset successfully'
-        });
-    } catch (error) {
-        console.error(error);
-        res.status(500).json({
-            success: false,
-            message: 'Server error during password reset'
-        });
-    }
+    };
+    await transporter.sendMail(mailOptions);
+    res.status(200).json({
+      success: true,
+      message: "Password reset successfully",
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({
+      success: false,
+      message: "Server error during password reset",
+    });
+  }
 };
 
 // LOGOUT CONTROLLER
 export const logoutUser = (req, res) => {
-    res
-        .clearCookie("token", {
-            httpOnly: true,
-            secure: process.env.NODE_ENV === "production",
-            sameSite: "strict",
-            path: "/", // <-- MUST BE CONSISTENT
-        })
-        .status(200)
-        .json({ message: "Logged out" });
+  res
+    .clearCookie("token", {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "strict",
+      path: "/",
+    })
+    .status(200)
+    .json({ message: "Logged out" });
 };
 
 export const checkAuth = (req, res) => {
-    try {
-        const token = req.cookies.token;
-        if (!token) {
-            return res.status(401).json({ isLoggedIn: false });
-        }
-        const decoded = jwt.verify(token, process.env.JWT_SECRET);
-        res.status(200).json({ isLoggedIn: true, user: decoded });
-    } catch (err) {
-        return res.status(401).json({ isLoggedIn: false });
+  try {
+    const token = req.cookies.token;
+    if (!token) {
+      return res.status(401).json({ isLoggedIn: false });
     }
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    res.status(200).json({ isLoggedIn: true, user: decoded });
+  } catch (err) {
+    return res.status(401).json({ isLoggedIn: false });
+  }
 };

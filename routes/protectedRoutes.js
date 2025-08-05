@@ -9,8 +9,6 @@ router.get("/", requireAuth, (req, res) => {
     message: "Protected bookings route accessed",
     user: req.user,
   });
-})
+});
 
 export default router;
-
-

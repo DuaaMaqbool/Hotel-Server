@@ -1,19 +1,3 @@
-// import mongoose from "mongoose";
-
-// const userSchema = mongoose.Schema(
-//   {
-//     username: { type: String, required: true },
-//     email: { type: String, required: true },
-//     password: { type: String, required: true },
-//     role: { type: String, enum: ["user", "hotelOwner"], default: "user" },
-//   },
-//   { timestamps: true }
-// );
-
-// const User = mongoose.model("User", userSchema);
-
-// export default User;
-
 import mongoose from "mongoose";
 
 // Create a schema
@@ -28,7 +12,7 @@ const userSchema = new mongoose.Schema(
     email: {
       type: String,
       required: true,
-      unique: true, // No two users can have same email
+      unique: true,
       lowercase: true,
     },
 
@@ -36,6 +20,11 @@ const userSchema = new mongoose.Schema(
       type: String,
       required: true,
       minlength: 6,
+    },
+    role: {
+      type: String,
+      enum: ["user", "hotelOwner"],
+      default: "user",
     },
     resetOTP: String,
     resetOTPExpiry: Date,
