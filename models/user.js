@@ -26,6 +26,7 @@ const userSchema = new mongoose.Schema(
       enum: ["user", "hotelOwner"],
       default: "user",
     },
+    recentSearchedCities: [{type: String, required: true}],
     resetOTP: String,
     resetOTPExpiry: Date,
   },

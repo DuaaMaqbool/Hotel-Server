@@ -5,11 +5,16 @@ import cors from "cors";
 import connectDB from "./config/db.js ";
 import authRoutes from "./routes/authRoutes.js";
 import protectedRoutes from "./routes/protectedRoutes.js";
+import userRouter from "./routes/userRoutes.js";
+import hotelRouter from "./routes/hotelRoutes.js";
+import connectCloudinary from "./config/cloudinary.js";
+import roomRouter from "./routes/roomRoutes.js";
 
 connectDB();
+connectCloudinary()
 
 const app = express();
-app.use(cookieParser());
+
 
 //middlewares
 app.use(
@@ -19,11 +24,15 @@ app.use(
   })
 ); //cross variable resource sharing
 app.use(express.json()); // To parse JSON request bodies
+app.use(cookieParser());
 
 //Routes
 app.get("/", (req, res) => res.send("api is working"));
 app.use("/api/auth", authRoutes);
 app.use("/api/protected", protectedRoutes);
+app.use("/api/user", userRouter);
+app.use('/api/hotel', hotelRouter);
+app.use('/api/rooms', roomRouter);
 
 const PORT = process.env.PORT || 3000;
 
